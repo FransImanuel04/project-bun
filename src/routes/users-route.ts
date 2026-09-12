@@ -4,10 +4,11 @@ import { db } from '../db';
 import {
   DatabaseUnavailableError,
   EmailAlreadyRegisteredError,
+  InvalidCredentialsError,
   createUsersService,
   type UsersService,
 } from '../services/users-service';
-import { users } from '../db/schema';
+import { sessions, users } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
 const databaseUsersService = createUsersService({
@@ -16,8 +17,8 @@ const databaseUsersService = createUsersService({
       throw new DatabaseUnavailableError();
     }
 
-    const result = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
-    return result.length > 0;
+    const result = await db.select({ id: users.id, password: users.password }).from(users).where(eq(users.email, email)).limit(1);
+    return result[0] ?? null;
   },
   async create(user) {
     if (!db) {
@@ -25,6 +26,13 @@ const databaseUsersService = createUsersService({
     }
 
     await db.insert(users).values(user);
+  },
+  async createSession(session) {
+    if (!db) {
+      throw new DatabaseUnavailableError();
+    }
+
+    await db.insert(sessions).values(session);
   },
 });
 
@@ -56,6 +64,33 @@ export function createUsersRoutes(usersService: UsersService) {
         name: t.String({ minLength: 1, maxLength: 255 }),
         email: t.String({ minLength: 3, maxLength: 255 }),
         password: t.String({ minLength: 6, maxLength: 255 }),
+      }),
+    },
+  ).post(
+    '/api/users/login',
+    async ({ body, set }) => {
+      try {
+        const token = await usersService.login(body);
+        return { data: token };
+      } catch (error) {
+        if (error instanceof InvalidCredentialsError) {
+          set.status = 401;
+          return { error: error.message };
+        }
+
+        if (error instanceof DatabaseUnavailableError) {
+          set.status = 503;
+          return { error: error.message };
+        }
+
+        set.status = 500;
+        return { error: 'Terjadi kesalahan internal' };
+      }
+    },
+    {
+      body: t.Object({
+        email: t.String({ minLength: 3, maxLength: 255 }),
+        password: t.String({ minLength: 1, maxLength: 255 }),
       }),
     },
   );

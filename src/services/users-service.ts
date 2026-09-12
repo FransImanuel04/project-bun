@@ -1,4 +1,5 @@
-import { hash } from 'bcryptjs';
+import { compare, hash } from 'bcryptjs';
+import { randomUUID } from 'node:crypto';
 
 export type RegisterUserInput = {
   name: string;
@@ -7,12 +8,14 @@ export type RegisterUserInput = {
 };
 
 export type UserRepository = {
-  findByEmail: (email: string) => Promise<boolean>;
+  findByEmail: (email: string) => Promise<{ id: number; password: string } | null>;
   create: (user: { name: string; email: string; password: string }) => Promise<void>;
+  createSession: (session: { token: string; userId: number }) => Promise<void>;
 };
 
 export type UsersService = {
   register: (input: RegisterUserInput) => Promise<void>;
+  login: (input: { email: string; password: string }) => Promise<string>;
 };
 
 export class EmailAlreadyRegisteredError extends Error {
@@ -29,6 +32,13 @@ export class DatabaseUnavailableError extends Error {
   }
 }
 
+export class InvalidCredentialsError extends Error {
+  constructor() {
+    super('Email atau password salah');
+    this.name = 'InvalidCredentialsError';
+  }
+}
+
 function isDuplicateEmailError(error: unknown) {
   if (!error || typeof error !== 'object') {
     return false;
@@ -40,8 +50,16 @@ function isDuplicateEmailError(error: unknown) {
 
 export function createUsersService(
   repository: UserRepository,
-  hashPassword: (password: string) => Promise<string> = (password) => hash(password, 12),
+  dependencies: {
+    hashPassword?: (password: string) => Promise<string>;
+    comparePassword?: (password: string, passwordHash: string) => Promise<boolean>;
+    generateToken?: () => string;
+  } = {},
 ): UsersService {
+  const hashPassword = dependencies.hashPassword ?? ((password: string) => hash(password, 12));
+  const comparePassword = dependencies.comparePassword ?? compare;
+  const generateToken = dependencies.generateToken ?? randomUUID;
+
   return {
     async register(input: RegisterUserInput) {
       const email = input.email.trim().toLowerCase();
@@ -65,6 +83,18 @@ export function createUsersService(
 
         throw error;
       }
+    },
+    async login(input) {
+      const email = input.email.trim().toLowerCase();
+      const user = await repository.findByEmail(email);
+
+      if (!user || !(await comparePassword(input.password, user.password))) {
+        throw new InvalidCredentialsError();
+      }
+
+      const token = generateToken();
+      await repository.createSession({ token, userId: user.id });
+      return token;
     },
   };
 }
