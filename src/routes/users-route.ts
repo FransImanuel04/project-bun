@@ -5,6 +5,7 @@ import {
   DatabaseUnavailableError,
   EmailAlreadyRegisteredError,
   InvalidCredentialsError,
+  UnauthorizedError,
   createUsersService,
   type UsersService,
 } from '../services/users-service';
@@ -34,10 +35,74 @@ const databaseUsersService = createUsersService({
 
     await db.insert(sessions).values(session);
   },
+  async findCurrentUserByToken(token) {
+    if (!db) {
+      throw new DatabaseUnavailableError();
+    }
+
+    const result = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        createdAt: users.createdAt,
+      })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.userId, users.id))
+      .where(eq(sessions.token, token))
+      .limit(1);
+
+    return result[0] ?? null;
+  },
 });
 
+function parseBearerToken(authorization: string | undefined) {
+  if (!authorization) {
+    return null;
+  }
+
+  const parts = authorization.trim().split(/\s+/);
+  if (parts.length !== 2 || parts[0]?.toLowerCase() !== 'bearer' || !parts[1]) {
+    return null;
+  }
+
+  return parts[1];
+}
+
 export function createUsersRoutes(usersService: UsersService) {
-  return new Elysia().post(
+  return new Elysia().get('/api/users/current', async ({ headers, set }) => {
+    const token = parseBearerToken(headers.authorization);
+
+    if (!token) {
+      set.status = 401;
+      return { error: 'Unathorized' };
+    }
+
+    try {
+      const user = await usersService.getCurrentUser(token);
+      return {
+        data: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          created_at: user.createdAt,
+        },
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        set.status = 401;
+        return { error: error.message };
+      }
+
+      if (error instanceof DatabaseUnavailableError) {
+        set.status = 503;
+        return { error: error.message };
+      }
+
+      set.status = 500;
+      return { error: 'Terjadi kesalahan internal' };
+    }
+  }).post(
     '/api/users',
     async ({ body, set }) => {
       try {

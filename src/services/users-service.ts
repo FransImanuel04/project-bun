@@ -7,8 +7,16 @@ export type RegisterUserInput = {
   password: string;
 };
 
+export type CurrentUser = {
+  id: number;
+  name: string;
+  email: string;
+  createdAt: Date | string;
+};
+
 export type UserRepository = {
   findByEmail: (email: string) => Promise<{ id: number; password: string } | null>;
+  findCurrentUserByToken: (token: string) => Promise<CurrentUser | null>;
   create: (user: { name: string; email: string; password: string }) => Promise<void>;
   createSession: (session: { token: string; userId: number }) => Promise<void>;
 };
@@ -16,6 +24,7 @@ export type UserRepository = {
 export type UsersService = {
   register: (input: RegisterUserInput) => Promise<void>;
   login: (input: { email: string; password: string }) => Promise<string>;
+  getCurrentUser: (token: string) => Promise<CurrentUser>;
 };
 
 export class EmailAlreadyRegisteredError extends Error {
@@ -96,5 +105,21 @@ export function createUsersService(
       await repository.createSession({ token, userId: user.id });
       return token;
     },
+    async getCurrentUser(token) {
+      const user = await repository.findCurrentUserByToken(token);
+
+      if (!user) {
+        throw new UnauthorizedError();
+      }
+
+      return user;
+    },
   };
+}
+
+export class UnauthorizedError extends Error {
+  constructor() {
+    super('Unathorized');
+    this.name = 'UnauthorizedError';
+  }
 }
