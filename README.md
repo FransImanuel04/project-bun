@@ -28,6 +28,7 @@ The server runs on `http://localhost:3000` by default. The available initial end
 - `GET /` checks that the application is running.
 - `GET /health` checks application and database availability.
 - `POST /api/users` registers a new user and stores the password as a bcrypt hash.
+- `POST /api/users/login` verifies credentials and creates a UUID session token.
 
 Example request:
 
@@ -41,6 +42,17 @@ Example request:
 
 A successful registration returns HTTP `201` with `{ "data": "OK" }`. An existing email returns HTTP `409` with `{ "error": "Email sudah terdaftar" }`.
 
+Login example:
+
+```json
+{
+	"email": "frans@localhost",
+	"password": "rahasia"
+}
+```
+
+A successful login returns HTTP `200` with `{ "data": "token" }`. Invalid credentials return HTTP `401` with `{ "error": "Email atau password salah" }`.
+
 ## Database
 
 Generate and apply Drizzle migrations after configuring `DATABASE_URL`:
@@ -50,7 +62,7 @@ bun run db:generate
 bun run db:migrate
 ```
 
-The `users` table stores the name, unique email, bcrypt password hash, and creation timestamp. Apply migrations after configuring `DATABASE_URL`.
+The `users` table stores the name, unique email, bcrypt password hash, and creation timestamp. The `sessions` table stores UUID login tokens associated with users. Apply migrations after configuring `DATABASE_URL`.
 
 ## Validation
 
