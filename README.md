@@ -27,6 +27,19 @@ The server runs on `http://localhost:3000` by default. The available initial end
 
 - `GET /` checks that the application is running.
 - `GET /health` checks application and database availability.
+- `POST /api/users` registers a new user and stores the password as a bcrypt hash.
+
+Example request:
+
+```json
+{
+	"name": "Frans",
+	"email": "frans@localhost",
+	"password": "rahasia"
+}
+```
+
+A successful registration returns HTTP `201` with `{ "data": "OK" }`. An existing email returns HTTP `409` with `{ "error": "Email sudah terdaftar" }`.
 
 ## Database
 
@@ -37,7 +50,7 @@ bun run db:generate
 bun run db:migrate
 ```
 
-The initial schema contains a `users` table as a starting point for future development.
+The `users` table stores the name, unique email, bcrypt password hash, and creation timestamp. Apply migrations after configuring `DATABASE_URL`.
 
 ## Validation
 
