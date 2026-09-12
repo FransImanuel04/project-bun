@@ -12,6 +12,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "drizzle-orm": "latest",
     "elysia": "latest",
     "mysql2": "latest"
