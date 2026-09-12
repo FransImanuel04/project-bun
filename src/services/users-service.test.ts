@@ -1,7 +1,7 @@
 import { compare } from 'bcryptjs';
 import { describe, expect, test } from 'bun:test';
 
-import { EmailAlreadyRegisteredError, InvalidCredentialsError, createUsersService } from './users-service';
+import { EmailAlreadyRegisteredError, InvalidCredentialsError, UnauthorizedError, createUsersService } from './users-service';
 
 describe('users service', () => {
   test('registers a user with a hashed password', async () => {
@@ -15,6 +15,7 @@ describe('users service', () => {
         storedUsers.push(user);
       },
       createSession: async () => undefined,
+      findCurrentUserByToken: async () => null,
     });
 
     await service.register({ name: ' Frans ', email: 'FRANS@LOCALHOST', password: 'rahasia' });
@@ -31,6 +32,7 @@ describe('users service', () => {
       findByEmail: async () => ({ id: 1, password: 'hash' }),
       create: async () => undefined,
       createSession: async () => undefined,
+      findCurrentUserByToken: async () => null,
     });
 
     expect(service.register({ name: 'Frans', email: 'frans@localhost', password: 'rahasia' })).rejects.toBeInstanceOf(
@@ -47,6 +49,7 @@ describe('users service', () => {
         createSession: async (session) => {
           storedSessions.push(session);
         },
+        findCurrentUserByToken: async () => null,
       },
       {
         comparePassword: async (password, passwordHash) => password === 'rahasia' && passwordHash === 'stored-hash',
@@ -65,10 +68,29 @@ describe('users service', () => {
       findByEmail: async () => null,
       create: async () => undefined,
       createSession: async () => undefined,
+      findCurrentUserByToken: async () => null,
     });
 
     expect(service.login({ email: 'unknown@localhost', password: 'rahasia' })).rejects.toBeInstanceOf(
       InvalidCredentialsError,
     );
+  });
+
+  test('gets the user associated with a session token', async () => {
+    const service = createUsersService({
+      findByEmail: async () => null,
+      create: async () => undefined,
+      createSession: async () => undefined,
+      findCurrentUserByToken: async (token) =>
+        token === 'valid-token' ? { id: 1, name: 'Frans', email: 'frans@localhost', createdAt: 'timestamp' } : null,
+    });
+
+    await expect(service.getCurrentUser('valid-token')).resolves.toEqual({
+      id: 1,
+      name: 'Frans',
+      email: 'frans@localhost',
+      createdAt: 'timestamp',
+    });
+    expect(service.getCurrentUser('unknown-token')).rejects.toBeInstanceOf(UnauthorizedError);
   });
 });

@@ -29,6 +29,7 @@ The server runs on `http://localhost:3000` by default. The available initial end
 - `GET /health` checks application and database availability.
 - `POST /api/users` registers a new user and stores the password as a bcrypt hash.
 - `POST /api/users/login` verifies credentials and creates a UUID session token.
+- `GET /api/users/current` returns the user associated with a valid session token.
 
 Example request:
 
@@ -52,6 +53,14 @@ Login example:
 ```
 
 A successful login returns HTTP `200` with `{ "data": "token" }`. Invalid credentials return HTTP `401` with `{ "error": "Email atau password salah" }`.
+
+Current user example:
+
+```text
+Authorization: Bearer <token>
+```
+
+The current-user endpoint returns HTTP `200` with the authenticated user's `id`, `name`, `email`, and `created_at`. Missing or invalid tokens return HTTP `401` with `{ "error": "Unathorized" }`.
 
 ## Database
 
